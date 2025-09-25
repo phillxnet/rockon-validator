@@ -146,7 +146,7 @@ Details more associated with development.
 ### GO download and install
 
 Alternatives to the `docker run` approach, and required for development purposes.
-Requires GO version 1.20 or later.
+Requires GO version 1.23 or later.
 - [Upstream install instructions](https://go.dev/doc/install)
 
 ### Go build

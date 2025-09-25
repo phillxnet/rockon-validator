@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"golang.org/x/exp/slog" // nee "log/slog"
@@ -71,7 +73,7 @@ func parseFileArgs() (filePaths []string) {
 		}
 		filePaths = append(filePaths, glob...)
 	}
-	// recurse sub-directories
+	// recurse subdirectories
 	//for i, f := range filePaths {
 	//	files, err := os.ReadDir(f)
 	//	if err != nil {
@@ -116,23 +118,33 @@ func checkRootMap(rootMap map[string]string, filename string, rockon model.RockO
 	var filenameFound bool
 	var keyName string
 	// Index file key expected to match lowercase Rockon name.
-	for key := range rootMap {
-		filenameFound = rootMap[key] == filename
+	for key, value := range maps.All(rootMap) {
+		filenameFound = value == filename
 		if filenameFound {
 			keyName = key
 			break
 		}
 	}
-	for name := range rockon {
-		if filenameFound {
-			if name != keyName {
-				slog.Warn("RockOn name does not match", slog.String("root.json", keyName), slog.String("rockon", name), slog.String("file", filepath.Base(filename)))
-			}
-		} else {
-			rootMap[name] = filename
-			logger.Debug("root.json map", slog.Any("rootMap", rootMap))
+
+	// maps.keys(rockon) returns an iterator over our single entry Rockon map.
+	// slices.Collect enables retrieval of key by index on slice.
+	// https://pkg.go.dev/iter#hdr-Standard_Library_Usage
+	var rockonTitle = slices.Collect(maps.Keys(rockon))[0]
+	var lowerCaseName = strings.ToLower(rockonTitle)
+	if filenameFound {
+		if lowerCaseName != keyName {
+			slog.Info("Found match in index for", slog.String("filename", filename))
+			slog.Warn("Name mismatch:", slog.String("index", keyName), slog.String("expected", lowerCaseName), slog.String("file", filepath.Base(filename)))
+			slog.Warn("(if --write) Removing and adding expected entry.")
+			delete(rootMap, keyName)
 		}
+	} else {
+		slog.Warn("No match in index for", slog.String("filename", filename))
+		slog.Info("(if --write) Adding entry", slog.String("index", lowerCaseName), slog.String("filename", filename))
 	}
+	rootMap[lowerCaseName] = filename
+	logger.Debug("root.json map", slog.Any("rootMap", rootMap))
+
 }
 
 func main() {
@@ -212,7 +224,7 @@ func main() {
 			err = json.Unmarshal(data, &rockon)
 			if err != nil {
 				if filepath.Ext(fileName) == ".json" {
-					logger.Error("Unmarshaling json data", slog.String("file", fileName), slog.Any("err", err))
+					logger.Error("Unmarshalling json data", slog.String("file", fileName), slog.Any("err", err))
 					os.Exit(1) // File was named `*.json`, but couldn't be marshalled as expected, so we need to exit.
 				}
 				logger.Warn("Non *.json filename passed as input, skipping", slog.String("file", fileName))
@@ -249,6 +261,7 @@ func main() {
 				if os.IsNotExist(err) {
 					rootStat = stat
 				}
+				// TODO: Sort rootMap by extracting keys, sorting them, and establishing a sorted slice.
 				rootJson, _ := json.MarshalIndent(rootMap, "", "  ")
 				logger.Debug("Writing root", slog.String("file", rootFile))
 				err = os.WriteFile(rootFile, rootJson, rootStat.Mode())
