@@ -64,7 +64,6 @@ func parseFlags() {
 }
 
 func parseFileArgs() (filePaths []string) {
-	logger.Debug("parseFileArgs()", slog.Any("called with", filePaths))
 	for _, f := range flag.Args() {
 		glob, _ := filepath.Glob(f)
 		if glob == nil {
@@ -177,6 +176,8 @@ func main() {
 	var numDiffFiles int
 	var indexValidated bool = false
 	rootFile = rootFlag
+	// TODO: replace map with Slice (type []T) for ordering
+	// https://go.dev/blog/slices-intro#slices
 	rootMap := make(map[string]string)
 
 	for _, fileName := range parseFileArgs() {
@@ -204,6 +205,8 @@ func main() {
 			}
 
 			rootData, err := os.ReadFile(rootFile)
+			// TODO: Warn on no index when using '--check' as this can create an index file from the passed definitions.
+			//  Set flag on --check and no index file found to avoid further references.
 			if err != nil {
 				logger.Error("Reading index", slog.String("file", rootFile), slog.Any("err", err))
 				os.Exit(4)
@@ -257,29 +260,38 @@ func main() {
 			bPath := "b/" + strings.TrimPrefix(fileName, "/")
 			edits := myers.ComputeEdits(span.URIFromPath(aPath), dataString, result)
 			fmt.Println(gotextdiff.ToUnified(aPath, bPath, dataString, edits))
+			// TODO: Also present diff of changes to index file.
 		}
 
 		if writeFlag {
+			// Get existing FileInfo to reuse in os.WriteFile overwrite.
 			stat, _ := os.Stat(fileName)
-			logger.Debug("Writing rockon", slog.String("file", fileName))
+			logger.Debug("Overwriting rockon", slog.String("file", fileName))
 			err = os.WriteFile(fileName, []byte(result), stat.Mode())
 			if err != nil {
-				logger.Error("Writing rockon", slog.String("file", fileName), slog.Any("err", err))
+				logger.Error("Overwriting rockon", slog.String("file", fileName), slog.Any("err", err))
 			}
 			rootStat, err := os.Stat(rootFile)
+			// if no index file for fileInfo, use Rockon FileInfo
 			if os.IsNotExist(err) {
 				rootStat = stat
 			}
-			// TODO: Sort rootMap by extracting keys, sorting them, and establishing a sorted slice.
+			// Slice.sorted of index file names GO 1.23 onwards
+			// https://www.dolthub.com/blog/2024-12-20-collection-functions-in-go-1-23/#sorting-map-elements
+			sortedKeys := slices.Sorted(maps.Keys(rootMap))
+			logger.Info("Sorted index", slog.Any("Keys", sortedKeys))
+			// TODO: ensure sorted index JSON output.
 			rootJson, _ := json.MarshalIndent(rootMap, "", "  ")
-			logger.Debug("Writing root", slog.String("file", rootFile))
+			logger.Debug("Overwriting index", slog.String("file", rootFile))
 			err = os.WriteFile(rootFile, rootJson, rootStat.Mode())
 			if err != nil {
-				logger.Error("Writing root", slog.String("file", rootFile), slog.Any("err", err))
+				logger.Error("Overwriting index", slog.String("file", rootFile), slog.Any("err", err))
 			}
 		}
 	}
 
+	// Consider dropping this count as we now manage RC differently.
+	// Also currently returns 0 when diff to valid stat is successfully.
 	if checkFlag {
 		os.Exit(numDiffFiles)
 	}
