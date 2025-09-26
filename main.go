@@ -223,8 +223,8 @@ func main() {
 		}
 
 		// Skip Rockon validation for index file: validated above.
-		if fileName == rootFile {
-			logger.Warn("New Skipped RockOn validation for index", slog.String("file", rootFile))
+		if filepath.Clean(fileName) == filepath.Clean(rootFile) {
+			logger.Warn("Skipped RockOn validation for index", slog.String("file", rootFile))
 			continue
 		}
 
