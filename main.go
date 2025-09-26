@@ -175,6 +175,10 @@ func main() {
 	logger.Debug("root.json flags", slog.String("rootFlag", rootFlag), slog.String("rootFile", rootFile))
 
 	var numDiffFiles int
+	var indexValidated bool = false
+	rootFile = rootFlag
+	rootMap := make(map[string]string)
+
 	for _, fileName := range parseFileArgs() {
 		logger.Info("Checking", slog.String("file", fileName))
 		data, err := os.ReadFile(fileName)
@@ -189,32 +193,33 @@ func main() {
 			os.Exit(3) // All files should at least parse as JSON.
 		}
 
-		rootFile = rootFlag
-		if rootFlag == "" {
-			rootFile = filepath.Join(filepath.Dir(fileName), "root.json")
-			logger.Info("Using same-path index", slog.String("file", rootFile))
-		} else {
-			logger.Info("Using passed index", slog.String("file", rootFile))
-		}
+		// Enables same-dir index default via: filepath.Dir(fileName)
+		// Avoid reprocessing index on every Rockon definition validation
+		if indexValidated == false {
+			if rootFlag == "" {
+				rootFile = filepath.Join(filepath.Dir(fileName), "root.json")
+				logger.Info("Using same-path index", slog.String("file", rootFile))
+			} else {
+				logger.Info("Using passed index", slog.String("file", rootFile))
+			}
 
-		rootData, err := os.ReadFile(rootFile)
-		if err != nil {
-			logger.Error("Reading index", slog.String("file", rootFile), slog.Any("err", err))
-			os.Exit(4)
-		}
-		if !json.Valid(rootData) {
-			logger.Error("Invalid JSON format in index", slog.String("file", rootFile))
-			os.Exit(5) // All files should at least parse as JSON.
-		}
+			rootData, err := os.ReadFile(rootFile)
+			if err != nil {
+				logger.Error("Reading index", slog.String("file", rootFile), slog.Any("err", err))
+				os.Exit(4)
+			}
+			if !json.Valid(rootData) {
+				logger.Error("Invalid JSON format in index", slog.String("file", rootFile))
+				os.Exit(5) // All files should at least parse as JSON.
+			}
 
-		// We re-validate our rootData on every parseFileArgs() entry
-		// Likely associated with multiple embedded rockon repos, each with possibly their own index file.
-		rootMap := map[string]string{}
-		err = json.Unmarshal(rootData, &rootMap)
-		logger.Debug("root.json flags", slog.String("rootFlag", rootFlag), slog.String("rootFile", rootFile))
-		if err != nil {
-			logger.Error("Index validation failed for", slog.String("file", rootFile))
-			os.Exit(1)
+			err = json.Unmarshal(rootData, &rootMap)
+			logger.Debug("root.json flags", slog.String("rootFlag", rootFlag), slog.String("rootFile", rootFile))
+			if err != nil {
+				logger.Error("Index validation failed for", slog.String("file", rootFile))
+				os.Exit(1)
+			}
+			indexValidated = true
 		}
 
 		// Validate Rockon file data against RockOn model, confirming matching index entry (root.json).
