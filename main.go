@@ -222,60 +222,61 @@ func main() {
 			indexValidated = true
 		}
 
+		// Skip Rockon validation for index file: validated above.
+		if fileName == rootFile {
+			logger.Warn("New Skipped RockOn validation for index", slog.String("file", rootFile))
+			continue
+		}
+
 		// Validate Rockon file data against RockOn model, confirming matching index entry (root.json).
-		// But only:
-		if fileName != rootFile {
-			var rockon model.RockOn
-			err = json.Unmarshal(data, &rockon)
+		var rockon model.RockOn
+		err = json.Unmarshal(data, &rockon)
+		if err != nil {
+			if filepath.Ext(fileName) == ".json" {
+				logger.Error("Unmarshalling json data", slog.String("file", fileName), slog.Any("err", err))
+				os.Exit(1) // File was named `*.json`, but couldn't be marshalled as expected, so we need to exit.
+			}
+			logger.Warn("Non *.json filename passed as input, skipping", slog.String("file", fileName))
+			continue // File was not named `*.json`, so we shouldn't worry about it.
+		}
+
+		checkRootMap(rootMap, filepath.Base(fileName), rockon)
+
+		result, err := rockon.ToJSON()
+		if err != nil {
+			logger.Error("Marshaling to JSON", slog.Any("err", err))
+			os.Exit(1) // This should basically never happen
+		}
+
+		if dataString != result {
+			numDiffFiles++
+		}
+
+		if diffFlag {
+			aPath := "a/" + strings.TrimPrefix(fileName, "/")
+			bPath := "b/" + strings.TrimPrefix(fileName, "/")
+			edits := myers.ComputeEdits(span.URIFromPath(aPath), dataString, result)
+			fmt.Println(gotextdiff.ToUnified(aPath, bPath, dataString, edits))
+		}
+
+		if writeFlag {
+			stat, _ := os.Stat(fileName)
+			logger.Debug("Writing rockon", slog.String("file", fileName))
+			err = os.WriteFile(fileName, []byte(result), stat.Mode())
 			if err != nil {
-				if filepath.Ext(fileName) == ".json" {
-					logger.Error("Unmarshalling json data", slog.String("file", fileName), slog.Any("err", err))
-					os.Exit(1) // File was named `*.json`, but couldn't be marshalled as expected, so we need to exit.
-				}
-				logger.Warn("Non *.json filename passed as input, skipping", slog.String("file", fileName))
-				continue // File was not named `*.json`, so we shouldn't worry about it.
+				logger.Error("Writing rockon", slog.String("file", fileName), slog.Any("err", err))
 			}
-
-			checkRootMap(rootMap, filepath.Base(fileName), rockon)
-
-			result, err := rockon.ToJSON()
+			rootStat, err := os.Stat(rootFile)
+			if os.IsNotExist(err) {
+				rootStat = stat
+			}
+			// TODO: Sort rootMap by extracting keys, sorting them, and establishing a sorted slice.
+			rootJson, _ := json.MarshalIndent(rootMap, "", "  ")
+			logger.Debug("Writing root", slog.String("file", rootFile))
+			err = os.WriteFile(rootFile, rootJson, rootStat.Mode())
 			if err != nil {
-				logger.Error("Marshaling to JSON", slog.Any("err", err))
-				os.Exit(1) // This should basically never happen
+				logger.Error("Writing root", slog.String("file", rootFile), slog.Any("err", err))
 			}
-
-			if dataString != result {
-				numDiffFiles++
-			}
-
-			if diffFlag {
-				aPath := "a/" + strings.TrimPrefix(fileName, "/")
-				bPath := "b/" + strings.TrimPrefix(fileName, "/")
-				edits := myers.ComputeEdits(span.URIFromPath(aPath), dataString, result)
-				fmt.Println(gotextdiff.ToUnified(aPath, bPath, dataString, edits))
-			}
-
-			if writeFlag {
-				stat, _ := os.Stat(fileName)
-				logger.Debug("Writing rockon", slog.String("file", fileName))
-				err = os.WriteFile(fileName, []byte(result), stat.Mode())
-				if err != nil {
-					logger.Error("Writing rockon", slog.String("file", fileName), slog.Any("err", err))
-				}
-				rootStat, err := os.Stat(rootFile)
-				if os.IsNotExist(err) {
-					rootStat = stat
-				}
-				// TODO: Sort rootMap by extracting keys, sorting them, and establishing a sorted slice.
-				rootJson, _ := json.MarshalIndent(rootMap, "", "  ")
-				logger.Debug("Writing root", slog.String("file", rootFile))
-				err = os.WriteFile(rootFile, rootJson, rootStat.Mode())
-				if err != nil {
-					logger.Error("Writing root", slog.String("file", rootFile), slog.Any("err", err))
-				}
-			}
-		} else {
-			logger.Warn("Skipped RockOn validation for index", slog.String("file", rootFile))
 		}
 	}
 
