@@ -41,10 +41,12 @@ type RockonDetails struct {
 }
 
 type UISlug struct {
-	Https bool   `json:"https,omitempty"` // Whether the UI can be accessed over https://
-	Slug  string `json:"slug,omitempty"`  // link to webui becomes ROCKSTOR_IP:PORT/gui with slug value gui
+	Https bool   `json:"https,omitempty"` // Whether the UI can be accessed over https://. Optional element.
+	Slug  string `json:"slug"`            // Web-UI path: ROCKSTOR_IP:PORT/gui with slug value "gui". Required element.
 }
 
+// MarshalJSON override (built-in), if contents are default (for type) (Https=false, Slug=""),
+// remove the RockonDetails.UI entry via nil assignment, and normally Marshal there-after.
 func (r RockonDetails) MarshalJSON() ([]byte, error) {
 	type ro RockonDetails
 	if r.UI != nil && *r.UI == (UISlug{}) {
