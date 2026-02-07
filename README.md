@@ -17,14 +17,14 @@ a failed validation (rc=1) error is returned.
 
 ### Omitted entries
 
-Many json Rock-on definition elements are optional: e.g. `icon`, `more_info`, `devices` etc.
+Many JSON Rock-on definition elements are optional: e.g. `icon`, `more_info`, `devices`, `ui` etc.
 Where-as in a GO `struct`, our backing validation, all possible fields are defined.
-To handle this miss-match the [omitempty](https://www.sohamkamani.com/golang/omitempty/) json tag is used.
-This effectively ignores/removes empty, default, or missing json elements during Un/marshalling from/to JSON string format.
+To handle this miss-match the [omitempty](https://www.sohamkamani.com/golang/omitempty/) JSON tag is used.
+This effectively ignores/removes empty, default, or missing JSON elements during Un/marshalling from/to JSON string format.
 
 For the more advanced `--diff` and `--write` options, this can have surprising consequences.
 I.e. if we want to maintain an explicit `"uid:" 0` element, which would otherwise be removed as a default int32 value,
-we can instead use a pointer to int32, default is undefined: ergo no json element no json marshalling (struct to json).
+we can instead use a pointer to int32, default is undefined: ergo no JSON element no JSON marshalling (struct to JSON).
 Embedded struct pointers, and custom variable types can also approach this same problem re `omitemtpy` compliance.
 All of the above approaches are used within this project.
 
