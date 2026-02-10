@@ -3,7 +3,6 @@ package model
 
 import (
 	"encoding/json"
-	"strconv"
 	"strings"
 )
 
@@ -106,27 +105,9 @@ type Option [2]string
 type CmdArgument [2]string
 
 type EnvironmentVar struct {
-	Description string   `json:"description"`       // Detailed description. Eg: Login username for Syncthing UI
-	Label       string   `json:"label"`             // A short label. eg: Web-UI username
-	Index       uint8    `json:"index,omitempty"`   // 1 or above. Order of this environment variable, if relevant
-	Default     StrValue `json:"default,omitempty"` // Default value for this env var
-}
-
-// StrValue is a custom type to be able to marshal strings that may be mistakenly entered as an integer.
-type StrValue string
-
-func (s *StrValue) UnmarshalJSON(data []byte) error {
-	if n := len(data); n > 1 && data[0] == '"' && data[n-1] == '"' {
-		return json.Unmarshal(data, (*string)(s))
-	}
-	var tmp int
-	if err := json.Unmarshal(data, &tmp); err != nil {
-		return err
-	}
-
-	*s = StrValue(strconv.Itoa(tmp))
-
-	return nil
+	Description string `json:"description"`     // Detailed description. Eg: Login username for Syncthing UI
+	Label       string `json:"label"`           // A short label. eg: Web-UI username
+	Index       uint8  `json:"index,omitempty"` // 1 or above. Order of this environment variable, if relevant
 }
 
 type Device struct {
